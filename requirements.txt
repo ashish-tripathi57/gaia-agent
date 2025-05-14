@@ -1,0 +1,7 @@
+gradio
+requests
+gradio[oauth]
+langchain
+langgraph
+langchain-google-genai
+langchain-tavily
