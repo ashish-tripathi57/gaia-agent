@@ -273,3 +273,4 @@ js/storybook/theme.css
 
 # playwright
 .config/playwright/.cache
+/downloaded_files
