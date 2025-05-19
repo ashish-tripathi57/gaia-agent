@@ -5,18 +5,13 @@ config:
 ---
 graph TD;
 	__start__([<p>__start__</p>]):::first
-	init(init)
 	assistant(assistant)
 	tools(tools)
-	handle_error(handle_error)
 	__end__([<p>__end__</p>]):::last
-	__start__ --> init;
+	__start__ --> assistant;
 	assistant -.-> __end__;
 	assistant -.-> tools;
-	init -. &nbsp;False&nbsp; .-> assistant;
-	init -. &nbsp;True&nbsp; .-> handle_error;
 	tools --> assistant;
-	handle_error --> __end__;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc
