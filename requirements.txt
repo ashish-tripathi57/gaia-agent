@@ -5,3 +5,6 @@ langchain
 langgraph
 langchain-google-genai
 langchain-tavily
+langchain-community
+wikipedia
+BeautifulSoup
