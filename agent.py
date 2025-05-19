@@ -8,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 import uuid
 import logging
-from tools import search_tool
+from tools import search_tool, wiki_search, wikipedia_search_html, website_scrape
 import os
 
 
@@ -33,15 +33,16 @@ def get_graph():
         max_retries=2,
     )
 
-    # Define tools
-    tools = [search_tool]
-    
-    # Create a system message to guide the model's behavior
-    system_message = SystemMessage(
-        content="""You are a helpful assistant that can use tools to provide accurate information. 
-        When you don't know something, use the search tool to find relevant information.
-        Always be concise, accurate, and helpful."""
+    llm_gemma = ChatGoogleGenerativeAI(
+        model="gemma-3-27b-it",
+        temperature=0,
+        max_tokens=None,
+        timeout=60,  # Added a timeout
+        max_retries=2,
     )
+
+    # Define tools
+    tools = [search_tool, wikipedia_search_html]
     
     # Bind tools to the LLM
     chat_with_tools = llm.bind_tools(tools)
@@ -51,6 +52,7 @@ def get_graph():
         messages: Annotated[list[AnyMessage], add_messages]
         last_ai_message: Optional[str]
         human_message: Optional[str]
+        planner_message: Optional[str]
         error: Optional[str]  # Added error field for tracking issues
 
     # Initialize the state
@@ -66,7 +68,7 @@ def get_graph():
             # Add system message if it's the first message
             if len(state["messages"]) <= 1:
                 return {
-                    "messages": [system_message],
+                    # "messages": [system_message],
                     "human_message": last_human.content if last_human else "",
                 }
             return {
@@ -84,6 +86,10 @@ def get_graph():
         """Generate a response using the LLM."""
         try:
             logger.info("Assistant node processing")
+            # Check if the last message is from the assistant
+            # prompt = f"Given the following question: {state['human_message']} Answer it using the tools available."
+            # if state["planner_message"]:
+            #     prompt += f"\nHere is a Plan to help you answer the user question: {state['planner_message']}"
             return {
                 "messages": [chat_with_tools.invoke(state["messages"])],
                 "last_ai_message": state["messages"][-1].content if state["messages"] and isinstance(state["messages"][-1], AIMessage) else None
@@ -92,6 +98,23 @@ def get_graph():
             logger.error(f"Error in assistant node: {e}")
             return {
                 "error": f"Assistant error: {str(e)}",
+                "messages": [AIMessage(content="I encountered an error while generating a response. Please try again.")]
+            }
+        
+    # Planner node - generates responses
+    def planner(state: AgentState) -> Dict[str, Any]:
+        """Create an action plan to answer user's query."""
+        try:
+            logger.info("Planner node processing")
+            tools_info = "\n".join([f"{tool.name}: {tool.description}" for tool in tools])
+            prompt = f"Given you have access to these tools: {tools_info} Create a plan to answer the following question: {state['human_message']}"
+            return {
+                "messages": [HumanMessage(llm_gemma.invoke(prompt).content)],
+            }
+        except Exception as e:
+            logger.error(f"Error in Planner node: {e}")
+            return {
+                "error": f"Planner error: {str(e)}",
                 "messages": [AIMessage(content="I encountered an error while generating a response. Please try again.")]
             }
 
@@ -108,15 +131,19 @@ def get_graph():
     builder = StateGraph(AgentState)
 
     # Define nodes
-    builder.add_node("init", init)
+    # builder.add_node("init", init)
+    # builder.add_node("planner", planner)
     builder.add_node("assistant", assistant)
     builder.add_node("tools", ToolNode(tools))
-    builder.add_node("handle_error", handle_error)
+    # builder.add_node("handle_error", handle_error)
 
     # Define edges for the standard flow
-    builder.add_edge(START, "init")
-    builder.add_edge("init", "assistant")
-    
+    # builder.add_edge(START, "init")
+    # builder.add_edge("init", "planner")
+    # builder.add_edge("planner", "assistant")
+    builder.add_edge(START, "assistant")
+
+
     # Conditional edges from assistant
     builder.add_conditional_edges(
         "assistant",
@@ -131,16 +158,16 @@ def get_graph():
     builder.add_edge("tools", "assistant")
     
     # Error handling edges
-    builder.add_conditional_edges(
-        "init",
-        lambda x: "error" in x and x["error"] is not None,
-        {
-            True: "handle_error",
-            False: "assistant"
-        }
-    )
+    # builder.add_conditional_edges(
+    #     "init",
+    #     lambda x: "error" in x and x["error"] is not None,
+    #     {
+    #         True: "handle_error",
+    #         False: "assistant"
+    #     }
+    # )
     
-    builder.add_edge("handle_error", END)
+    # builder.add_edge("handle_error", END)
 
     # Set up memory for conversation persistence
     memory = MemorySaver()
@@ -177,11 +204,14 @@ class BasicAgent:
     def __call__(self, question: str) -> str:
         """Process a question through the agent and return the response."""
         logger.info(f"Agent received question: {question[:50]}...")
-
+        # Create a system message to guide the model's behavior
+        system_message = SystemMessage(
+            content="""You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string."""
+        )
         try:
             # Construct initial state
             initial_state = {
-                "messages": [HumanMessage(content=question)],
+                "messages": [system_message, HumanMessage(content=question)],
                 "last_ai_message": None,
                 "human_message": None,
                 "error": None
@@ -210,5 +240,5 @@ class BasicAgent:
 # Example usage
 if __name__ == "__main__":
     agent = BasicAgent()
-    response = agent("What's the weather like in San Francisco today?")
+    response = agent("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.")
     print(f"Response: {response}")
