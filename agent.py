@@ -240,5 +240,7 @@ class BasicAgent:
 # Example usage
 if __name__ == "__main__":
     agent = BasicAgent()
-    response = agent("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.")
+    # response = agent("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.")
+    # response = agent('.rewsna eht sa "tfel" drow eht fo etisoppo eht etirw ,ecnetnes siht dnatsrednu uoy fI')
+    response = agent("Who nominated the only Featured Article on English Wikipedia about a dinosaur that was promoted in November 2016?")
     print(f"Response: {response}")
