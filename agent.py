@@ -8,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 import uuid
 import logging
-from tools import search_tool, wiki_search, wikipedia_search_html, website_scrape
+from tools import wikipedia_search_html, website_scrape, web_search
 import os
 
 
@@ -42,7 +42,7 @@ def get_graph():
     )
 
     # Define tools
-    tools = [search_tool, wikipedia_search_html]
+    tools = [web_search, wikipedia_search_html, website_scrape]
     
     # Bind tools to the LLM
     chat_with_tools = llm.bind_tools(tools)
@@ -243,4 +243,5 @@ if __name__ == "__main__":
     # response = agent("How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.")
     # response = agent('.rewsna eht sa "tfel" drow eht fo etisoppo eht etirw ,ecnetnes siht dnatsrednu uoy fI')
     response = agent("Who nominated the only Featured Article on English Wikipedia about a dinosaur that was promoted in November 2016?")
+    
     print(f"Response: {response}")
