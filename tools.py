@@ -4,15 +4,80 @@ from langchain_community.document_loaders import WikipediaLoader
 import wikipedia
 import requests
 from bs4 import BeautifulSoup
+from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_core.messages import HumanMessage
+from pydantic import BaseModel, Field
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import PromptTemplate
+import os
 # from playwright.sync_api import sync_playwright
 
 search_tool = TavilySearch(
     max_results=2,
-    topic="general",    
-    time_range="week",
+    # topic="general",    
+    # time_range="week",
     # include_domains=None,
     # exclude_domains=None
 )
+
+
+# Define your desired data structure.
+class ImprovedQuery(BaseModel):
+    query1: str = Field(description="An improved query version 1")
+    # query2: str = Field(description="An improved query version 2")
+    # query3: str = Field(description="An improved query version 3")
+    # query4: str = Field(description="An improved query version 4")
+    # query5: str = Field(description="An improved query version 5")
+
+@tool
+def web_search(query: str) -> str:
+    """Search the web for a query and return maximum 2 results.
+    
+    Args:
+        query: The search query."""
+    
+    alternative_queries = generate_improved_queries(query)
+    alternative_queries['query'] = query
+    # import pdb;pdb.set_trace()
+    search_results = []
+    for key, val in alternative_queries.items():
+        search_results.append(search_tool.invoke(val))
+    # print(f"Search results: {search_results} \n type: {type(search_results)}")
+    return {"search_results": str(search_results)}
+
+def generate_improved_queries(query: str) -> str:
+    """
+    Generate one improved versions of a given search query using a language model.
+
+    Args:
+        query (str): The original search query to be improved.
+
+    Returns:
+        str: A JSON object containing five improved query versions.
+    """
+    if "GOOGLE_API_KEY" not in os.environ:
+        os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
+    
+    llm_gemma = ChatGoogleGenerativeAI(
+        model="gemma-3-27b-it",
+        temperature=0,
+        max_tokens=None,
+        timeout=60,  # Added a timeout
+        max_retries=2,
+    )
+
+    # Set up a parser + inject instructions into the prompt template.
+    parser = JsonOutputParser(pydantic_object=ImprovedQuery)
+    prompt = PromptTemplate(
+        template="Give 1 improved version of this search query: {query}\n.\n{format_instructions}\n",
+        input_variables=["query"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+
+    chain = prompt | llm_gemma | parser
+
+    return chain.invoke({"query": query})
+
 
 @tool
 def wiki_search(query: str) -> str:
@@ -24,7 +89,8 @@ def wiki_search(query: str) -> str:
     # print(f"Search results: {search_docs}")
     formatted_search_docs = "\n\n---\n\n".join(
         [
-            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+            # f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
+            f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n</Document>'
             for doc in search_docs
         ])
     return {"wiki_results": formatted_search_docs}
@@ -81,12 +147,15 @@ def wikipedia_search_html(query: str) -> str:
 
 
 @tool
-def website_scrape(url: str, question: str) -> str:
-    """Scrapes a website and returns the text.
+def website_scrape(url: str) -> str:
+    """
+    Scrape the given website URL and return all extracted text content.
+
     Args:
-        url (str): the URL to the website to scrape.
+        url (str): The URL of the website to scrape.
+
     Returns:
-        str: The text of the website.
+        str: The plain text content extracted from the website's HTML.
     """
 
     # with sync_playwright() as p:
@@ -96,7 +165,7 @@ def website_scrape(url: str, question: str) -> str:
     #     html_content = page.content()
     #     browser.close()
 
-    url = "https://en.wikipedia.org/wiki/"
+    # url = "https://en.wikipedia.org/wiki/"
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
 
@@ -111,11 +180,12 @@ def website_scrape(url: str, question: str) -> str:
 if __name__ == "__main__":
 
     # Example usage
-    query = "Mercedes Sosa"
+    # query = "Mercedes Sosa"
     # results = website_scrape.invoke({"url":"https://en.wikipedia.org/wiki/", "question":query})
-
-    results = wikipedia_search_html.invoke({"query": query})
-
+    # results = wikipedia_search_html.invoke({"query": query})
+    # results = wiki_search.invoke({"query": "Wikipedia featured articles promoted in november 2016"})
+    # results = web_search.invoke({"query": "featured article dinosaur english wikipedia november 2016"})
+    results = website_scrape.invoke({"url":"https://en.wikipedia.org/wiki/Wikipedia:Featured_article_candidates/Giganotosaurus/archive1"})
     print(results)
     
     # Example usage of TavilySearch
