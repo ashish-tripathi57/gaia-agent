@@ -8,6 +8,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 import uuid
 import logging
+from pydantic import BaseModel, Field
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import PromptTemplate
 from tools import wikipedia_search_html, website_scrape, web_search, visual_model, audio_model, run_python, data_tool
 import os
 
@@ -15,6 +18,8 @@ import os
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+SYSTEM_MESSAGE = """You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string."""
 
 def get_graph():
     """Build and return a LangGraph for a conversational agent with tools."""
@@ -50,8 +55,9 @@ def get_graph():
     # Define the state type with annotations
     class AgentState(TypedDict):
         messages: Annotated[list[AnyMessage], add_messages]
-        # last_ai_message: Optional[str]
-        human_message: Optional[str]
+        last_ai_message: Optional[str]
+        question: Optional[str]
+        final_answer: Optional[str]
         # planner_message: Optional[str]
         error: Optional[str]  # Added error field for tracking issues
 
@@ -69,10 +75,10 @@ def get_graph():
             if len(state["messages"]) <= 1:
                 return {
                     # "messages": [system_message],
-                    "human_message": last_human.content if last_human else "",
+                    "question": last_human.content if last_human else "",
                 }
             return {
-                "human_message": last_human.content if last_human else "",
+                "question": last_human.content if last_human else "",
             }
         except Exception as e:
             logger.error(f"Error in init node: {e}")
@@ -87,12 +93,13 @@ def get_graph():
         try:
             logger.info("Assistant node processing")
             # Check if the last message is from the assistant
-            # prompt = f"Given the following question: {state['human_message']} Answer it using the tools available."
+            # prompt = f"Given the following question: {state['question']} Answer it using the tools available."
             # if state["planner_message"]:
             #     prompt += f"\nHere is a Plan to help you answer the user question: {state['planner_message']}"
+            response = chat_with_tools.invoke(state["messages"])
             return {
-                "messages": [chat_with_tools.invoke(state["messages"])],
-                "last_ai_message": state["messages"][-1].content if state["messages"] and isinstance(state["messages"][-1], AIMessage) else None
+                "messages": [response],
+                "last_ai_message": response.content #if state["messages"] and isinstance(state["messages"][-1], AIMessage) else None
             }
         except Exception as e:
             logger.error(f"Error in assistant node: {e}")
@@ -107,7 +114,7 @@ def get_graph():
         try:
             logger.info("Planner node processing")
             tools_info = "\n".join([f"{tool.name}: {tool.description}" for tool in tools])
-            prompt = f"Given you have access to these tools: {tools_info} Create a plan to answer the following question: {state['human_message']}"
+            prompt = f"Given you have access to these tools: {tools_info} Create a plan to answer the following question: {state['question']}"
             return {
                 "messages": [HumanMessage(llm_gemma.invoke(prompt).content)],
             }
@@ -126,6 +133,47 @@ def get_graph():
         return {
             "messages": [AIMessage(content=f"I apologize, but I encountered an error: {error_msg}. Please try again or rephrase your question.")]
         }
+    
+    
+    # Define your desired data structure.
+    class AnswerTemplate(BaseModel):
+        thought: str = Field(description="Thought process of the model")
+        answer: str = Field(description="Final answer to the question")
+
+    def validate_answer(state: AgentState) -> Dict[str, Any]:
+        """Validate the final answer."""
+        try:
+            logger.info("Validating answer")
+            
+            llm_gemma = ChatGoogleGenerativeAI(
+                model="gemma-3-27b-it",
+                temperature=0,
+                max_tokens=None,
+                timeout=60,  # Added a timeout
+                max_retries=2,
+            )
+
+            query = "Format the answer in json with the following keys: thoughts and answer. Thought should be a string that describes your thought process. Answer should be the final answer to the question."
+            
+            # Set up a parser + inject instructions into the prompt template.
+            parser = JsonOutputParser(pydantic_object=AnswerTemplate)
+            prompt = PromptTemplate(
+                        template=f"System Message: {SYSTEM_MESSAGE}\n\n Question: {state['question']} \n\n Answer: {state['last_ai_message']}\n\n" + "{format_instructions}\n{query}",
+                        input_variables=["query"],
+                        partial_variables={"format_instructions": parser.get_format_instructions()},
+                    )
+            # import pdb;pdb.set_trace()
+            chain = prompt | llm_gemma | parser
+
+            return {
+                "final_answer": chain.invoke({"query": query})["answer"]
+            }
+        except Exception as e:
+            logger.error(f"Error in validate_answer node: {e}")
+            return {
+                "error": f"Validation error: {str(e)}",
+                "messages": [AIMessage(content="I encountered an error while validating the answer. Please try again.")]
+            }
 
     # Build the graph
     builder = StateGraph(AgentState)
@@ -135,6 +183,7 @@ def get_graph():
     # builder.add_node("planner", planner)
     builder.add_node("assistant", assistant)
     builder.add_node("tools", ToolNode(tools))
+    builder.add_node("validate_answer", validate_answer)
     # builder.add_node("handle_error", handle_error)
 
     # Define edges for the standard flow
@@ -150,12 +199,14 @@ def get_graph():
         tools_condition,
         {
             "tools": "tools",  # Route to tools if needed
-            END: END  # Route to end if no tools needed
+            # END: "END"  # Route to end if no tools needed
+            END: "validate_answer"  # Route to validate_answer if no tools needed
         }
     )
     
     # From tools back to assistant to process tool results
     builder.add_edge("tools", "assistant")
+    builder.add_edge("validate_answer", END)
     
     # Error handling edges
     # builder.add_conditional_edges(
@@ -206,7 +257,7 @@ class BasicAgent:
         logger.info(f"Agent received question: {question[:50]}...")
         # Create a system message to guide the model's behavior
         system_message = SystemMessage(
-            content="""You are a general AI assistant. I will ask you a question. Report your thoughts, and finish your answer with the following template: FINAL ANSWER: [YOUR FINAL ANSWER]. YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string."""
+            content=SYSTEM_MESSAGE
         )
         try:
             # Construct initial state
@@ -214,20 +265,29 @@ class BasicAgent:
             initial_state = {
                 "messages": [system_message, HumanMessage(content=question)],
                 # "last_ai_message": None,
-                "human_message": None,
+                "question": question,
                 "error": None
             }
 
             # Run the LangGraph
             final_state = self.graph.invoke(initial_state, self.config)
-            final_messages = final_state.get("messages", [])
+            # Check for errors in the final state
+            if "error" in final_state and final_state["error"] is not None:
+                logger.error(f"Error in final state: {final_state['error']}")
+            
+            # final_messages = final_state.get("messages", [])
+            final_answer = final_state.get("final_answer", None)
 
             # Get the last AI message (if any)
-            for msg in reversed(final_messages):
-                if isinstance(msg, AIMessage) and hasattr(msg, "content"):
-                    response = msg.content
-                    logger.info(f"Agent returning AI response")
-                    return response
+            # for msg in reversed(final_messages):
+            #     if isinstance(msg, AIMessage) and hasattr(msg, "content"):
+            #         response = msg.content
+            #         logger.info(f"Agent returning AI response")
+            #         return response
+            if final_answer:
+                # If a final answer is available, return it
+                logger.info(f"Agent returning final answer: {final_answer}")
+                return final_answer
 
             # Fallback if no AI message found
             fallback = "Sorry, I could not generate a response."
