@@ -58,34 +58,7 @@ def get_graph():
         last_ai_message: Optional[str]
         question: Optional[str]
         final_answer: Optional[str]
-        # planner_message: Optional[str]
         error: Optional[str]  # Added error field for tracking issues
-
-    # Initialize the state
-    def init(state: AgentState) -> Dict[str, Any]:
-        """Extract the human message and initialize the state."""
-        try:
-            last_human = None
-            for msg in reversed(state["messages"]):
-                if last_human is None and isinstance(msg, HumanMessage):
-                    last_human = msg
-                    break
-            
-            # Add system message if it's the first message
-            if len(state["messages"]) <= 1:
-                return {
-                    # "messages": [system_message],
-                    "question": last_human.content if last_human else "",
-                }
-            return {
-                "question": last_human.content if last_human else "",
-            }
-        except Exception as e:
-            logger.error(f"Error in init node: {e}")
-            return {
-                "error": f"Initialization error: {str(e)}",
-                "messages": [AIMessage(content="I encountered an error during initialization. Please try again.")]
-            }
 
     # Assistant node - generates responses
     def assistant(state: AgentState) -> Dict[str, Any]:
@@ -107,23 +80,7 @@ def get_graph():
                 "error": f"Assistant error: {str(e)}",
                 "messages": [AIMessage(content="I encountered an error while generating a response. Please try again.")]
             }
-        
-    # Planner node - generates responses
-    def planner(state: AgentState) -> Dict[str, Any]:
-        """Create an action plan to answer user's query."""
-        try:
-            logger.info("Planner node processing")
-            tools_info = "\n".join([f"{tool.name}: {tool.description}" for tool in tools])
-            prompt = f"Given you have access to these tools: {tools_info} Create a plan to answer the following question: {state['question']}"
-            return {
-                "messages": [HumanMessage(llm_gemma.invoke(prompt).content)],
-            }
-        except Exception as e:
-            logger.error(f"Error in Planner node: {e}")
-            return {
-                "error": f"Planner error: {str(e)}",
-                "messages": [AIMessage(content="I encountered an error while generating a response. Please try again.")]
-            }
+
 
     # Error handling node
     def handle_error(state: AgentState) -> Dict[str, Any]:
@@ -162,7 +119,6 @@ def get_graph():
                         input_variables=["query"],
                         partial_variables={"format_instructions": parser.get_format_instructions()},
                     )
-            # import pdb;pdb.set_trace()
             chain = prompt | llm_gemma | parser
 
             return {
@@ -179,19 +135,13 @@ def get_graph():
     builder = StateGraph(AgentState)
 
     # Define nodes
-    # builder.add_node("init", init)
-    # builder.add_node("planner", planner)
     builder.add_node("assistant", assistant)
     builder.add_node("tools", ToolNode(tools))
     builder.add_node("validate_answer", validate_answer)
     # builder.add_node("handle_error", handle_error)
 
     # Define edges for the standard flow
-    # builder.add_edge(START, "init")
-    # builder.add_edge("init", "planner")
-    # builder.add_edge("planner", "assistant")
     builder.add_edge(START, "assistant")
-
 
     # Conditional edges from assistant
     builder.add_conditional_edges(
@@ -207,18 +157,6 @@ def get_graph():
     # From tools back to assistant to process tool results
     builder.add_edge("tools", "assistant")
     builder.add_edge("validate_answer", END)
-    
-    # Error handling edges
-    # builder.add_conditional_edges(
-    #     "init",
-    #     lambda x: "error" in x and x["error"] is not None,
-    #     {
-    #         True: "handle_error",
-    #         False: "assistant"
-    #     }
-    # )
-    
-    # builder.add_edge("handle_error", END)
 
     # Set up memory for conversation persistence
     memory = MemorySaver()
@@ -275,15 +213,8 @@ class BasicAgent:
             if "error" in final_state and final_state["error"] is not None:
                 logger.error(f"Error in final state: {final_state['error']}")
             
-            # final_messages = final_state.get("messages", [])
             final_answer = final_state.get("final_answer", None)
 
-            # Get the last AI message (if any)
-            # for msg in reversed(final_messages):
-            #     if isinstance(msg, AIMessage) and hasattr(msg, "content"):
-            #         response = msg.content
-            #         logger.info(f"Agent returning AI response")
-            #         return response
             if final_answer:
                 # If a final answer is available, return it
                 logger.info(f"Agent returning final answer: {final_answer}")
