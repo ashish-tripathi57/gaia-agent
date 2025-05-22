@@ -110,14 +110,23 @@ def get_graph():
                 max_retries=2,
             )
 
-            query = "Format the answer in json with the following keys: thoughts and answer. Thought should be a string that describes your thought process. Answer should be the final answer to the question."
+            def escape_braces(text):
+                return text.replace("{", "{{").replace("}", "}}")
+
+            query = "You are given an interaction between human and AI agent. Format the AGENT ANSWER in json with the following keys: answer. Answer should be the final answer from the AGENT."
             
             # Set up a parser + inject instructions into the prompt template.
             parser = JsonOutputParser(pydantic_object=AnswerTemplate)
             prompt = PromptTemplate(
-                        template=f"System Message: {SYSTEM_MESSAGE}\n\n Question: {state['question']} \n\n Answer: {state['last_ai_message']}\n\n" + "{format_instructions}\n{query}",
+                        template=(
+                            f"SYSTEM MESSAGE: {SYSTEM_MESSAGE}\n\n"
+                            f"HUMAN QUERY: {escape_braces(state['question'])}\n\n"
+                            f"AGENT ANSWER: {escape_braces(state['last_ai_message'])}\n\n" 
+                            # "{format_instructions}\n{query}"
+                            f"{query}"
+                        ),
                         input_variables=["query"],
-                        partial_variables={"format_instructions": parser.get_format_instructions()},
+                        # partial_variables={"format_instructions": parser.get_format_instructions()},
                     )
             chain = prompt | llm_gemma | parser
 
@@ -163,15 +172,15 @@ def get_graph():
     graph = builder.compile(checkpointer=memory)
     
     # Generate and display the graph visualization
-    try:
-        mermaid_code = graph.get_graph(xray=True).draw_mermaid()
-        logger.info("Generated Mermaid diagram")
+    # try:
+    #     mermaid_code = graph.get_graph(xray=True).draw_mermaid()
+    #     logger.info("Generated Mermaid diagram")
 
-        with open("graph_diagram.mmd", "w") as f:
-            f.write(mermaid_code)
-            logger.info("Graph diagram saved as graph_diagram.mmd")
-    except Exception as e:
-        logger.error(f"Error generating graph visualization: {e}")
+    #     with open("graph_diagram.mmd", "w") as f:
+    #         f.write(mermaid_code)
+    #         logger.info("Graph diagram saved as graph_diagram.mmd")
+    # except Exception as e:
+    #     logger.error(f"Error generating graph visualization: {e}")
     
     return graph
 
