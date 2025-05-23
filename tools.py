@@ -56,28 +56,6 @@ def data_tool(query: str, task_id: str) -> str:
     return response
 
 @tool
-def read_excel_file(task_id, sheet_name=0):
-    """
-    Reads an Excel file and returns a pandas DataFrame.
-
-    Parameters:
-    - file_path (str): The path to the Excel file.
-    - sheet_name (str or int, optional): Name or index of the sheet to read. Default is the first sheet.
-
-    Returns:
-    - pd.DataFrame: The contents of the Excel sheet as a DataFrame.
-    """
-    file_path = f"./downloaded_files/{task_id}.xlsx"
-    logger.info(f"read_excel_file called")
-    try:
-        df = pd.read_excel(file_path, sheet_name=sheet_name)
-        import pdb;pdb.set_trace()
-        return df
-    except Exception as e:
-        print(f"Error reading Excel file: {e}")
-        return None
-
-@tool
 def run_python(task_id: str) -> str:
     """
     Executes a Python script identified by the given task_id and returns its output.
