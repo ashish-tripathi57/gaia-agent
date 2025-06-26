@@ -19,6 +19,7 @@ import subprocess
 import pandas as pd
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ def excel_tool(query: str, task_id: str) -> str:
     )
     agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True)
     response = agent.invoke(query)
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return response
 
 @tool
@@ -66,6 +68,7 @@ def run_python(task_id: str) -> str:
     """
     logger.info(f"run_python called")
     result = subprocess.run(["python", f"../../downloaded_files/{task_id}.py"], capture_output=True, text=True)
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return result.stdout.strip()
     
 
@@ -120,6 +123,7 @@ def audio_model(query: str, task_id: str) -> str:
         ]
     )
     response = llm.invoke([message])  # Uncomment to run
+    time.sleep(10)  # pause execution to help prevent exceeding rate limits
     return response
 
     
@@ -163,6 +167,7 @@ def visual_model(query: str, task_id: str) -> str:
         ]
     )
     result = llm_gemma.invoke([message_local])
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return result
 
 
@@ -194,11 +199,11 @@ def web_search(query: str) -> str:
     # alternative_queries = generate_improved_queries(query)
     alternative_queries = {}
     alternative_queries['query'] = query
-    # import pdb;pdb.set_trace()
     search_results = []
     for key, val in alternative_queries.items():
         search_results.append(search_tool.invoke(val))
     # print(f"Search results: {search_results} \n type: {type(search_results)}")
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return {"search_results": str(search_results)}
 
 def generate_improved_queries(query: str) -> str:
@@ -231,7 +236,7 @@ def generate_improved_queries(query: str) -> str:
     )
 
     chain = prompt | llm_gemma | parser
-
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits      
     return chain.invoke({"query": query})
 
 
@@ -251,6 +256,7 @@ def wiki_search(query: str) -> str:
             f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n</Document>'
             for doc in search_docs
         ])
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return {"wiki_results": formatted_search_docs}
 
 
@@ -301,6 +307,7 @@ def wikipedia_search_html(query: str) -> str:
     for tag in to_unwrap:
         tag.unwrap()
 
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     # Step 5: Return cleaned HTML string
     return str(content_div)
 
@@ -334,5 +341,5 @@ def website_scrape(url: str) -> str:
 
     # Extract text from the website
     text = soup.get_text()
-
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return text
