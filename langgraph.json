@@ -1,0 +1,12 @@
+{
+    "dockerfile_lines": [],
+    "graphs": {
+      "react": "./agent/react/graph.py:graph",
+      "reflection": "./agent/reflection/graph.py:graph"
+    },
+    "env": "./.env",
+    "python_version": "3.13",
+    "dependencies": [
+      "."
+    ]
+  }
