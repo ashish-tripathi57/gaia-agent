@@ -1,5 +1,6 @@
 import logging
 import uuid
+import os
 from dotenv import load_dotenv
 
 load_dotenv()  
@@ -25,7 +26,11 @@ class Agent:
         logger.info(f"Agent received question: {question[:50]}...")
         try:
             # Construct initial state
-            question += f"\ntask_id={task_id}"
+            exists = any(fname.startswith(task_id + ".") for fname in os.listdir("../../downloaded_files/"))
+            if exists:
+                logger.info("File exists. Adding task_id to question")
+                question += f"\ntask_id={task_id}"
+            
             initial_state = {
                 "system_message": self.system_message,
                 "question": question,
