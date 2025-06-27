@@ -26,7 +26,7 @@ class Agent:
         logger.info(f"Agent received question: {question[:50]}...")
         try:
             # Construct initial state
-            exists = any(fname.startswith(task_id + ".") for fname in os.listdir("../../downloaded_files/"))
+            exists = any(fname.startswith(task_id + ".") for fname in os.listdir("../downloaded_files/"))
             if exists:
                 logger.info("File exists. Adding task_id to question")
                 question += f"\ntask_id={task_id}"
