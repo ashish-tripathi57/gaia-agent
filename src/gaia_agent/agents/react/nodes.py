@@ -1,9 +1,9 @@
 from typing import Dict
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
-from utils.tools import wikipedia_search_html, website_scrape, web_search, visual_model, audio_model, run_python, excel_tool
+from gaia_agent.common.tools import wikipedia_search_html, website_scrape, web_search, visual_model, audio_model, run_python, excel_tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import ToolNode
-from react.state import AgentState
+from gaia_agent.agents.react.state import AgentState
 import logging
 logger = logging.getLogger(__name__)
 

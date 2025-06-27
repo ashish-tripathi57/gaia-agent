@@ -1,8 +1,8 @@
 from langgraph.graph import START, StateGraph, END
-from react.state import AgentState, AgentStateInput, AgentStateOutput
-from react.nodes import assistant, get_tool_node
+from gaia_agent.agents.react.state import AgentState, AgentStateInput, AgentStateOutput
+from gaia_agent.agents.react.nodes import assistant, get_tool_node
 from langgraph.prebuilt import tools_condition
-from utils.nodes import validate_answer
+from gaia_agent.common.nodes import validate_answer
 
 # Build the graph
 builder = StateGraph(AgentState, input=AgentStateInput, output=AgentStateOutput)

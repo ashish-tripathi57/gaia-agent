@@ -4,11 +4,11 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage, ToolMessage
 from langchain_core.messages.utils import get_buffer_string
 from langchain_core.prompts import ChatPromptTemplate
-from utils.tools import wikipedia_search_html, website_scrape, web_search, visual_model, audio_model, run_python, excel_tool
-from utils.prompts import load_prompt
+from gaia_agent.common.tools import wikipedia_search_html, website_scrape, web_search, visual_model, audio_model, run_python, excel_tool
+from gaia_agent.common.prompts import load_prompt
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import ToolNode
-from reflection.state import AgentState
+from gaia_agent.agents.reflection.state import AgentState
 import logging
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def reflection(state: AgentState, config: Dict):
     # LLM with function call
     parser = JsonOutputParser(pydantic_object=ReflectionOutput)
 
-    reflection_prompt = load_prompt("../../prompts", "reflection")
+    reflection_prompt = load_prompt("../src/gaia_agent/prompts", "reflection")
     llm = ChatGoogleGenerativeAI(
         model="gemma-3-12b-it",
         temperature=0,
