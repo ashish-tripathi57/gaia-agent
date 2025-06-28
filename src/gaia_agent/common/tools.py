@@ -58,10 +58,12 @@ def excel_tool(query: str, task_id: str) -> str:
 @tool
 def run_python(task_id: str) -> str:
     """
-    Executes a Python script identified by the given task_id and returns its output.
+    Executes a Python script identified by the given task_id and returns its output. 
+    DO NOT call this function unless the user has explicitly provided a valid task_id in their request.
+    The task_id must be clearly stated in the user's question.
 
     Args:
-        task_id (str): The identifier used to locate the corresponding Python file (./downloaded_files/{task_id}.py).
+        task_id (str): The identifier used to locate the corresponding Python file (../downloaded_files/{task_id}.py).
 
     Returns:
         str: The standard output from executing the Python script, or an error message if execution fails.

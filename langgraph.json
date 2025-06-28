@@ -1,8 +1,9 @@
 {
     "dockerfile_lines": [],
     "graphs": {
-      "react": "./agent/react/graph.py:graph",
-      "reflection": "./agent/reflection/graph.py:graph"
+      "react": "./src/gaia_agent/agents/react/graph.py:graph",
+      "reflection": "./src/gaia_agent/agents/reflection/graph.py:graph",
+      "plan_execute": "./src/gaia_agent/agents/plan_execute/graph.py:graph"
     },
     "env": "./.env",
     "python_version": "3.13",
