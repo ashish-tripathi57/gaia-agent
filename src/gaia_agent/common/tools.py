@@ -266,8 +266,8 @@ def wiki_search(query: str) -> str:
 def wikipedia_search_html(query: str) -> str:
     """
     Search Wikipedia for a given query, retrieve the corresponding page's HTML content,
-    clean it by removing unnecessary elements (such as styles, scripts, references, infoboxes, etc.),
-    and return a simplified HTML string containing only the main content.
+    clean it by removing unnecessary elements, and return a simplified HTML string 
+    optimized for AI processing.
 
     Args:
         query (str): The search query for the Wikipedia page.
@@ -278,40 +278,106 @@ def wikipedia_search_html(query: str) -> str:
     
     logger.info(f"wikipedia_search_html called with query='{query}'")
     # Step 1: Get Wikipedia HTML
-    page = wikipedia.page(query)
-    html = page.html()
+    page = None
+    attempt = 0
+    max_retries = 2
+    
+    while attempt <= max_retries:
+        try:
+            if attempt == 0:
+                page = wikipedia.page(query)
+            else:
+                # Try search suggestions if direct lookup fails
+                search_results = wikipedia.search(query, results=3)
+                if search_results:
+                    page = wikipedia.page(search_results[0])
+                else:
+                    logger.warning(f"No search results found for query: '{query}'")
+                    return ""
+            break
+            
+        except wikipedia.exceptions.DisambiguationError as e:
+            logger.info(f"Disambiguation found for '{query}', using first option: {e.options[0]}")
+            try:
+                page = wikipedia.page(e.options[0])
+                break
+            except Exception as nested_e:
+                logger.warning(f"Failed to get disambiguation page: {nested_e}")
+                attempt += 1
+                
+        except wikipedia.exceptions.PageError:
+            logger.warning(f"Page not found for query: '{query}'")
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Unexpected error fetching Wikipedia page (attempt {attempt + 1}): {e}")
+            attempt += 1
+            if attempt <= max_retries:
+                time.sleep(1)  # Brief pause before retry
+    
+    if not page:
+        logger.error(f"Failed to retrieve page after {max_retries + 1} attempts")
+        return ""
+
+    try:
+        html = page.html()
+    except Exception as e:
+        logger.error(f"Error getting HTML content: {e}")
+        return ""
 
     # Step 2: Parse HTML
     soup = BeautifulSoup(html, "html.parser")
     content_div = soup.find("div", class_="mw-parser-output")
-    # content_div = soup.find("table", class_="wikitable")
+    
     if not content_div:
+        logger.warning("Could not find main content div")
         return ""
 
-    # Step 3: Find all tags to remove (style, script, sup, infobox, etc.)
-    to_decompose = []
+    # Step 3: Remove unwanted elements (more comprehensive for AI processing)
+    selectors_to_remove = [
+        "style", "script", "noscript",  # Scripts and styles
+        ".reference", ".references",    # References
+        ".navbox", ".infobox", ".sidebar",  # Navigation boxes
+        ".hatnote", ".dablink",         # Disambiguation notes
+        ".printfooter", ".catlinks",    # Print/category links
+        ".mw-editsection",              # Edit section links
+        ".thumbcaption .magnify",       # Image magnify links
+        "[role='note']",                # Note elements
+        ".mw-cite-backlink"             # Citation backlinks
+    ]
+    
+    for selector in selectors_to_remove:
+        for element in content_div.select(selector):
+            element.decompose()
+
+    # Step 4: Preserve more useful tags for AI understanding
+    # AI agents benefit from semantic structure
+    allowed_tags = {
+        "p", "div",              # Text containers
+        "h1", "h2", "h3", "h4", "h5", "h6",  # Headings
+        "ul", "ol", "li",                # Lists
+        "table", "tr", "td", "th", "tbody", "thead",  # Tables
+        # "a", "strong", "b", "em", "i",   # Text formatting and links
+        # "blockquote", "code", "pre",     # Special content
+        # "img", "figure", "figcaption"    # Images with context
+    }
+    
+    # Remove attributes that aren't useful for AI (keep href, src, alt)
+    # useful_attrs = {"href", "src", "alt", "title"}
+    useful_attrs = {}
+
     for tag in content_div.find_all():
-        tag_classes = tag.get("class", [])
-        if (
-            tag.name in ["style", "script", "sup"]
-            or any(cls in ["infobox", "navbox", "reference"] for cls in tag_classes)
-        ):
-            to_decompose.append(tag)
+        if tag.name not in allowed_tags:
+            tag.unwrap()
+        else:
+            # Clean attributes, keeping only useful ones
+            attrs_to_keep = {k: v for k, v in tag.attrs.items() if k in useful_attrs}
+            tag.attrs = attrs_to_keep
 
-    # Remove them after collecting
-    for tag in to_decompose:
-        tag.decompose()
-
-    # Step 4: Unwrap all tags except allowed ones
-    allowed_tags = {"ul", "li", "table", "tr", "td", "th"}
-    to_unwrap = [tag for tag in content_div.find_all() if tag.name not in allowed_tags]
-
-    for tag in to_unwrap:
-        tag.unwrap()
-
+    result_html = str(content_div)
     time.sleep(5)  # pause execution to help prevent exceeding rate limits
     # Step 5: Return cleaned HTML string
-    return str(content_div)
+    return result_html
 
 
 @tool
