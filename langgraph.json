@@ -3,7 +3,8 @@
     "graphs": {
       "react": "./src/gaia_agent/agents/react/graph.py:graph",
       "reflection": "./src/gaia_agent/agents/reflection/graph.py:graph",
-      "plan_execute": "./src/gaia_agent/agents/plan_execute/graph.py:graph"
+      "plan_execute": "./src/gaia_agent/agents/plan_execute/graph.py:graph",
+      "multi_agent": "./src/gaia_agent/agents/multi_agent/graph.py:graph"
     },
     "env": "./.env",
     "python_version": "3.13",
