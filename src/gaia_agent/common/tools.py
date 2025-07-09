@@ -290,7 +290,8 @@ def wikipedia_search_html(query: str) -> str:
                 # Try search suggestions if direct lookup fails
                 search_results = wikipedia.search(query, results=3)
                 if search_results:
-                    page = wikipedia.page(search_results[0])
+                    logger.info(f"Search results: {search_results[attempt-1]}")
+                    page = wikipedia.page(search_results[attempt-1])
                 else:
                     logger.warning(f"No search results found for query: '{query}'")
                     return ""
@@ -307,7 +308,7 @@ def wikipedia_search_html(query: str) -> str:
                 
         except wikipedia.exceptions.PageError:
             logger.warning(f"Page not found for query: '{query}'")
-            return ""
+            attempt += 1
             
         except Exception as e:
             logger.error(f"Unexpected error fetching Wikipedia page (attempt {attempt + 1}): {e}")
