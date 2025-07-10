@@ -10,6 +10,7 @@ from gaia_agent.common.tools import (
     web_search,
     visual_model,
     audio_model,
+    youtube_video_model,
     run_python,
     excel_tool,
 )
@@ -52,6 +53,7 @@ tools = [
     website_scrape,
     visual_model,
     audio_model,
+    youtube_video_model,
     run_python,
     excel_tool,
 ]
