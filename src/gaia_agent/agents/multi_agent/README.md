@@ -10,19 +10,19 @@ This repository implements a multi-agent architecture using LangGraph to coordin
 
 - Specialized Agents:
 
-- web_search_agent: Searches the web and scrapes websites.
+  - web_search_agent: Searches the web and scrapes websites.
 
-- wikipedia_agent: Searches Wikipedia.
+  - wikipedia_agent: Searches Wikipedia.
 
-- visual_agent: Processes visual/image data.
+  - visual_agent: Processes visual/image data.
 
-- audio_agent: Processes audio files.
+  - audio_agent: Processes audio files.
 
-- youtube_video_agent: Extracts and processes content from YouTube.
+  - youtube_video_agent: Extracts and processes content from YouTube.
 
-- excel_agent: Parses and analyzes Excel files.
+  - excel_agent: Parses and analyzes Excel files.
 
-- python_agent: Executes Python code.
+  - python_agent: Executes Python code.
 
 - Validation: Finalizes the answer for the user by validating and ensuring it is self-contained.
 
