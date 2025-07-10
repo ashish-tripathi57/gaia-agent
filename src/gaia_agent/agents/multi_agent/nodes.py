@@ -7,6 +7,7 @@ from gaia_agent.common.tools import (
     web_search,
     visual_model,
     audio_model,
+    youtube_video_model,
     run_python,
     excel_tool,
 )
@@ -90,6 +91,11 @@ def audio_agent(state: AgentState, config: Dict):
     return _execute_agent_task(state, config, "audio_agent", [audio_model])
 
 
+def youtube_video_agent(state: AgentState, config: Dict):
+    """Youtube video agent can use tools to process youtube videos."""
+    return _execute_agent_task(state, config, "youtube_video_agent", [youtube_video_model])
+
+
 def excel_agent(state: AgentState, config: Dict):
     """Excel agent can use tools to process excel files."""
     return _execute_agent_task(state, config, "excel_agent", [excel_tool])
@@ -100,7 +106,6 @@ def python_agent(state: AgentState, config: Dict):
     return _execute_agent_task(state, config, "python_agent", [run_python])
 
 
-# Then collect them at module level
 def _collect_agents_with_docs():
     """Collect all agent functions from current module"""
     current_module = inspect.getmodule(inspect.currentframe())
@@ -125,7 +130,6 @@ def get_agents_with_docs():
     return AGENT_DATA
 
 
-# Planner node - generates responses
 def supervisor(
     state: AgentState, config: Dict
 ) -> Command[

@@ -14,6 +14,7 @@ class Task(BaseModel):
         "wikipedia_agent",
         "visual_agent",
         "audio_agent",
+        "youtube_video_agent",
         "excel_agent",
         "python_agent",
     ] = Field(description="Agent to perform task.")
