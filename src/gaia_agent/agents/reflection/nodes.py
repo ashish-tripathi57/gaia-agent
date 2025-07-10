@@ -10,6 +10,7 @@ from gaia_agent.common.tools import (
     web_search,
     visual_model,
     audio_model,
+    youtube_video_model,
     run_python,
     excel_tool,
 )
@@ -35,6 +36,7 @@ def assistant(state: AgentState, config: Dict):
             website_scrape,
             visual_model,
             audio_model,
+            youtube_video_model,
             run_python,
             excel_tool,
         ]
@@ -84,6 +86,7 @@ def get_tool_node(state: AgentState, config: Dict):
             website_scrape,
             visual_model,
             audio_model,
+            youtube_video_model,
             run_python,
             excel_tool,
         ]
