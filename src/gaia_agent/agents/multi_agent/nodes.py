@@ -23,32 +23,10 @@ import importlib.util
 from langgraph.types import Command
 from types import ModuleType
 from pathlib import Path
+from gaia_agent.agents.multi_agent.state import Tasks
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-class Tasks(BaseModel):
-    """Tasks to perform."""
-
-    agent_tasks: List[Dict[str, str]] = Field(
-        description="tasks to perform, should be in sorted order"
-    )
-
-
-class FinalAnswer(BaseModel):
-    """Final answer to user."""
-
-    final_answer: str = Field(description="Final answer to user.")
-
-
-class Act(BaseModel):
-    """Action to perform."""
-
-    action: Union[FinalAnswer, Tasks] = Field(
-        description="Action to perform. If you want to respond to user, use Response. "
-        "If you need to further use tools to get the answer, use Plan."
-    )
 
 
 # load agent from file
@@ -98,46 +76,49 @@ def supervisor(
     tasks_str += "\n---\n"
 
     llm = ChatGoogleGenerativeAI(
-        model="gemma-3-27b-it",
+        model="gemini-2.5-flash-lite-preview-06-17", #model="gemma-3-27b-it",
         temperature=0,
         max_tokens=None,
         timeout=60,  # Added a timeout
         max_retries=2,
     )
+    llm = llm.with_structured_output(Tasks)
 
     prompt_path = current_dir / ".." / ".." / "prompts"
     planner_prompt = load_prompt(prompt_path, "supervisor")
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("human", planner_prompt + "\n\n{format_instructions}"),
+            # ("human", planner_prompt + "\n\n{format_instructions}"),
+            ("human", planner_prompt),
         ]
     )
 
-    planner_chain = prompt | llm | parser
+    planner_chain = prompt | llm #| parser
     response = planner_chain.invoke(
         {
             "question": state["question"],
             "past_steps": tasks_str,
             "agents": agents_str,
-            "format_instructions": parser.get_format_instructions(),
+            # "format_instructions": parser.get_format_instructions(),
         }
     )
-    ((agent_name, agent_task),) = response["agent_tasks"][0].items()
+
+    agent_name, agent_task = response.agent_tasks[0].agent_name, response.agent_tasks[0].agent_task
     if agent_name == "validation_agent":
         return Command(
             goto="validation_agent",
             update={
-                "agent_tasks": response["agent_tasks"],
+                "agent_tasks": response.agent_tasks,
                 "last_ai_message": agent_task,
             },
         )
     elif agent_name == "research_agent":
         return Command(
-            goto="research_agent", update={"agent_tasks": response["agent_tasks"]}
+            goto="research_agent", update={"agent_tasks": response.agent_tasks}
         )
     elif agent_name == "wikipedia_agent":
         return Command(
-            goto="wikipedia_agent", update={"agent_tasks": response["agent_tasks"]}
+            goto="wikipedia_agent", update={"agent_tasks": response.agent_tasks}
         )
     else:
         return Command(
@@ -149,7 +130,7 @@ def supervisor(
 def _execute_agent_task(state: AgentState, config: Dict, agent_name: str, tools: list):
     """Common execution logic for agent tasks."""
     try:
-        task = state["agent_tasks"][0][agent_name]
+        task = state["agent_tasks"][0].agent_task
         task_formatted = f"""{task}"""
 
         logger.info(f"{agent_name.replace('_', ' ').title()} task: {task}")
