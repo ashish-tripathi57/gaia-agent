@@ -12,7 +12,7 @@ This project implements a plan-execute agent framework using LangChain and LangG
 
 - Replanning: Adjusts the plan based on intermediate outputs.
 
-- Tool Use: Supports search, scraping, vision, audio, code execution, and Excel.
+- Tool Use: Supports search, scraping, vision, audio, code execution, YouTube video analysis, and Excel.
 
 - Graph-Based Flow: Built using LangGraph to define execution logic as a state machine.
 
@@ -29,6 +29,8 @@ The agent supports several powerful tools:
 - visual_model: Vision-related tasks
 
 - audio_model: Audio-related tasks
+
+- youtube_video_model: YouTube video analysis
 
 - run_python: Execute Python code
 
