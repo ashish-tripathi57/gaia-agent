@@ -30,4 +30,4 @@ Here are available agents:
 Here are past steps that have been done (might be empty):
 {past_steps}
 
-Now as a supervisor, analyze the steps that have been done and think about what to do next. If you can answer the user's question using the past steps, then pass your answer to the validation agent. Otherwise, break it down into delegated tasks to subagents as described.
+Now as a supervisor, analyze the steps that have been done and think about what to do next. If you can answer the user's question using the past steps, then pass your answer to the validation agent. Otherwise, break it down into delegated tasks to subagents as described and always pass tasks id to subagents whenever task id is specified.
