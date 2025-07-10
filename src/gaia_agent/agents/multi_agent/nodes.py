@@ -6,6 +6,7 @@ from langchain_core.messages.utils import get_buffer_string
 from langchain_core.prompts import ChatPromptTemplate
 from gaia_agent.common.tools import (
     wikipedia_search_html,
+    wiki_search,
     website_scrape,
     web_search,
     visual_model,
@@ -50,10 +51,7 @@ class Act(BaseModel):
     )
 
 
-# tools = [web_search, wikipedia_search_html, website_scrape, visual_model, audio_model, run_python, excel_tool]
-
-
-# load tools from file
+# load agent from file
 def load_agent_from_file(file_path: str) -> List[ToolNode]:
     """
     Loads a Python file as a module and yields the name and docstring
@@ -72,7 +70,7 @@ def load_agent_from_file(file_path: str) -> List[ToolNode]:
     for name, func in inspect.getmembers(module, inspect.isfunction):
         # The __doc__ attribute holds the docstring
         if func.__module__ == module.__name__:
-            if "agent_node" in name:
+            if name.endswith("_agent"):
                 docstring = inspect.getdoc(func) or "No docstring found."
                 yield name, docstring
 
@@ -81,7 +79,7 @@ def load_agent_from_file(file_path: str) -> List[ToolNode]:
 def supervisor(
     state: AgentState, config: Dict
 ) -> Command[
-    Literal["research_agent_node", "wikipedia_agent_node", "validation_agent"]
+    Literal["research_agent", "wikipedia_agent", "validation_agent"]
 ]:
     logger.info("Supervisor node processing")
 
@@ -133,13 +131,13 @@ def supervisor(
                 "last_ai_message": agent_task,
             },
         )
-    elif agent_name == "research_agent_node":
+    elif agent_name == "research_agent":
         return Command(
-            goto="research_agent_node", update={"agent_tasks": response["agent_tasks"]}
+            goto="research_agent", update={"agent_tasks": response["agent_tasks"]}
         )
-    elif agent_name == "wikipedia_agent_node":
+    elif agent_name == "wikipedia_agent":
         return Command(
-            goto="wikipedia_agent_node", update={"agent_tasks": response["agent_tasks"]}
+            goto="wikipedia_agent", update={"agent_tasks": response["agent_tasks"]}
         )
     else:
         return Command(
@@ -192,15 +190,15 @@ def _execute_agent_task(state: AgentState, config: Dict, agent_name: str, tools:
         }
 
 
-def research_agent_node(state: AgentState, config: Dict):
+def research_agent(state: AgentState, config: Dict):
     """Research agent node has access to the web and can use tools to complete tasks."""
     return _execute_agent_task(
-        state, config, "research_agent_node", [web_search, website_scrape]
+        state, config, "research_agent", [web_search, website_scrape]
     )
 
 
-def wikipedia_agent_node(state: AgentState, config: Dict):
+def wikipedia_agent(state: AgentState, config: Dict):
     """Wikipedia agent node has access to Wikipedia and can use tools to complete tasks."""
     return _execute_agent_task(
-        state, config, "wikipedia_agent_node", [wikipedia_search_html]
+        state, config, "wikipedia_agent", [wikipedia_search_html, wiki_search]
     )
