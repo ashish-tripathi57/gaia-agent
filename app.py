@@ -21,16 +21,17 @@ DEFAULT_API_URL = "https://agents-course-unit4-scoring.hf.space"
 #         print(f"Agent returning fixed answer: {fixed_answer}")
 #         return fixed_answer
 
-def run_and_submit_all( profile: gr.OAuthProfile | None):
+
+def run_and_submit_all(profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the BasicAgent on them, submits all answers,
     and displays the results.
     """
     # --- Determine HF Space Runtime URL and Repo URL ---
-    space_id = os.getenv("SPACE_ID") # Get the SPACE_ID for sending link to the code
+    space_id = os.getenv("SPACE_ID")  # Get the SPACE_ID for sending link to the code
 
     if profile:
-        username= f"{profile.username}"
+        username = f"{profile.username}"
         print(f"User logged in: {username}")
     else:
         print("User not logged in.")
@@ -57,16 +58,16 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
         response.raise_for_status()
         questions_data = response.json()
         if not questions_data:
-             print("Fetched questions list is empty.")
-             return "Fetched questions list is empty or invalid format.", None
+            print("Fetched questions list is empty.")
+            return "Fetched questions list is empty or invalid format.", None
         print(f"Fetched {len(questions_data)} questions.")
     except requests.exceptions.RequestException as e:
         print(f"Error fetching questions: {e}")
         return f"Error fetching questions: {e}", None
     except requests.exceptions.JSONDecodeError as e:
-         print(f"Error decoding JSON response from questions endpoint: {e}")
-         print(f"Response text: {response.text[:500]}")
-         return f"Error decoding server response for questions: {e}", None
+        print(f"Error decoding JSON response from questions endpoint: {e}")
+        print(f"Response text: {response.text[:500]}")
+        return f"Error decoding server response for questions: {e}", None
     except Exception as e:
         print(f"An unexpected error occurred fetching questions: {e}")
         return f"An unexpected error occurred fetching questions: {e}", None
@@ -75,27 +76,52 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
     results_log = []
     answers_payload = []
     print(f"Running agent on {len(questions_data)} questions...")
-    skip_tasks = ["a1e91b78-d3d8-4675-bb8d-62741b4b68a6", "9d191bce-651d-4746-be2d-7ef8ecadb9c2"]
+    skip_tasks = [
+        "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+        "9d191bce-651d-4746-be2d-7ef8ecadb9c2",
+    ]
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
         if task_id in skip_tasks:
             print(f"Skipping task {task_id} as per skip list.")
             answers_payload.append({"task_id": task_id, "submitted_answer": "SKIPPED"})
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": "SKIPPED"})
+            results_log.append(
+                {
+                    "Task ID": task_id,
+                    "Question": question_text,
+                    "Submitted Answer": "SKIPPED",
+                }
+            )
             continue
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
         try:
             agent = BasicAgent()
-            submitted_answer = agent(question=question_text, task_id=task_id) # agent(question_text, task_id)
-            answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
+            submitted_answer = agent(
+                question=question_text, task_id=task_id
+            )  # agent(question_text, task_id)
+            answers_payload.append(
+                {"task_id": task_id, "submitted_answer": submitted_answer}
+            )
+            results_log.append(
+                {
+                    "Task ID": task_id,
+                    "Question": question_text,
+                    "Submitted Answer": submitted_answer,
+                }
+            )
         except Exception as e:
-             print(f"Error running agent on task {task_id}: {e}")
-             results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": f"AGENT ERROR: {e}"})
-        
+            print(f"Error running agent on task {task_id}: {e}")
+            results_log.append(
+                {
+                    "Task ID": task_id,
+                    "Question": question_text,
+                    "Submitted Answer": f"AGENT ERROR: {e}",
+                }
+            )
+
         # Cool down to avoid rate limiting
         time.sleep(15)
 
@@ -103,8 +129,12 @@ def run_and_submit_all( profile: gr.OAuthProfile | None):
         print("Agent did not produce any answers to submit.")
         return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
 
-    # 4. Prepare Submission 
-    submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
+    # 4. Prepare Submission
+    submission_data = {
+        "username": username.strip(),
+        "agent_code": agent_code,
+        "answers": answers_payload,
+    }
     status_update = f"Agent finished. Submitting {len(answers_payload)} answers for user '{username}'..."
     print(status_update)
 
@@ -174,20 +204,19 @@ with gr.Blocks() as demo:
 
     run_button = gr.Button("Run Evaluation & Submit All Answers")
 
-    status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
+    status_output = gr.Textbox(
+        label="Run Status / Submission Result", lines=5, interactive=False
+    )
     # Removed max_rows=10 from DataFrame constructor
     results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
 
-    run_button.click(
-        fn=run_and_submit_all,
-        outputs=[status_output, results_table]
-    )
+    run_button.click(fn=run_and_submit_all, outputs=[status_output, results_table])
 
 if __name__ == "__main__":
-    print("\n" + "-"*30 + " App Starting " + "-"*30)
+    print("\n" + "-" * 30 + " App Starting " + "-" * 30)
     # Check for SPACE_HOST and SPACE_ID at startup for information
     space_host_startup = os.getenv("SPACE_HOST")
-    space_id_startup = os.getenv("SPACE_ID") # Get SPACE_ID at startup
+    space_id_startup = os.getenv("SPACE_ID")  # Get SPACE_ID at startup
 
     if space_host_startup:
         print(f"✅ SPACE_HOST found: {space_host_startup}")
@@ -195,14 +224,18 @@ if __name__ == "__main__":
     else:
         print("ℹ️  SPACE_HOST environment variable not found (running locally?).")
 
-    if space_id_startup: # Print repo URLs if SPACE_ID is found
+    if space_id_startup:  # Print repo URLs if SPACE_ID is found
         print(f"✅ SPACE_ID found: {space_id_startup}")
         print(f"   Repo URL: https://huggingface.co/spaces/{space_id_startup}")
-        print(f"   Repo Tree URL: https://huggingface.co/spaces/{space_id_startup}/tree/main")
+        print(
+            f"   Repo Tree URL: https://huggingface.co/spaces/{space_id_startup}/tree/main"
+        )
     else:
-        print("ℹ️  SPACE_ID environment variable not found (running locally?). Repo URL cannot be determined.")
+        print(
+            "ℹ️  SPACE_ID environment variable not found (running locally?). Repo URL cannot be determined."
+        )
 
-    print("-"*(60 + len(" App Starting ")) + "\n")
+    print("-" * (60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for Basic Agent Evaluation...")
     demo.launch(debug=True, share=True)

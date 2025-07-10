@@ -1,6 +1,14 @@
 from langgraph.graph import START, StateGraph, END
-from gaia_agent.agents.multi_agent.state import AgentState, AgentStateInput, AgentStateOutput
-from gaia_agent.agents.multi_agent.nodes import supervisor, research_agent_node, wikipedia_agent_node
+from gaia_agent.agents.multi_agent.state import (
+    AgentState,
+    AgentStateInput,
+    AgentStateOutput,
+)
+from gaia_agent.agents.multi_agent.nodes import (
+    supervisor,
+    research_agent_node,
+    wikipedia_agent_node,
+)
 from gaia_agent.common.nodes import validate_answer
 
 # Build the graph

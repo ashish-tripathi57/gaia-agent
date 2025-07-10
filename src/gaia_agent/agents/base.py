@@ -3,14 +3,17 @@ import uuid
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  
+load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 class Agent:
     """A simple agent that manages interaction with the LangGraph."""
-    
+
     def __init__(self, graph, system_message):
         """Initialize the agent with a LangGraph."""
         self.graph = graph
@@ -26,11 +29,14 @@ class Agent:
         logger.info(f"Agent received question: {question[:50]}...")
         try:
             # Construct initial state
-            exists = any(fname.startswith(task_id + ".") for fname in os.listdir("../downloaded_files/"))
+            exists = any(
+                fname.startswith(task_id + ".")
+                for fname in os.listdir("../downloaded_files/")
+            )
             if exists:
                 logger.info("File exists. Adding task_id to question")
                 question += f"\ntask_id={task_id}"
-            
+
             initial_state = {
                 "system_message": self.system_message,
                 "question": question,
@@ -41,7 +47,7 @@ class Agent:
             # Check for errors in the final state
             if "error" in final_state and final_state["error"] is not None:
                 logger.error(f"Error in final state: {final_state['error']}")
-            
+
             final_answer = final_state.get("final_answer", None)
 
             if final_answer:
@@ -53,7 +59,7 @@ class Agent:
             fallback = "Sorry, I could not generate a response."
             logger.warning("Agent fallback response - no AI message found")
             return fallback
-            
+
         except Exception as e:
             logger.error(f"Unhandled exception in agent: {e}", exc_info=True)
             return f"Sorry, I encountered an unexpected error: {str(e)}"

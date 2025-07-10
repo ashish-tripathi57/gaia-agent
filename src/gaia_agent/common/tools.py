@@ -1,5 +1,6 @@
 from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
+
 # from langchain_core.tools import Tool
 from langchain_community.document_loaders import WikipediaLoader
 import wikipedia
@@ -13,6 +14,7 @@ from langchain_core.prompts import PromptTemplate
 
 import os
 import base64
+
 # from playwright.sync_api import sync_playwright
 # from langchain_experimental.utilities import PythonREPL
 import subprocess
@@ -23,6 +25,7 @@ import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
 
 @tool
 def excel_tool(query: str, task_id: str) -> str:
@@ -43,7 +46,7 @@ def excel_tool(query: str, task_id: str) -> str:
 
     if "GOOGLE_API_KEY" not in os.environ:
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
-    
+
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash-lite-preview-06-17",
         temperature=0,
@@ -51,15 +54,18 @@ def excel_tool(query: str, task_id: str) -> str:
         timeout=60,  # Added a timeout
         max_retries=2,
     )
-    agent = create_pandas_dataframe_agent(llm, df, verbose=True, allow_dangerous_code=True)
+    agent = create_pandas_dataframe_agent(
+        llm, df, verbose=True, allow_dangerous_code=True
+    )
     response = agent.invoke(query)
     time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return response
 
+
 @tool
 def run_python(task_id: str) -> str:
     """
-    Executes a Python script identified by the given task_id and returns its output. 
+    Executes a Python script identified by the given task_id and returns its output.
     DO NOT call this function unless the user has explicitly provided a valid task_id in their request.
     The task_id must be clearly stated in the user's question.
 
@@ -71,16 +77,21 @@ def run_python(task_id: str) -> str:
     """
     logger.info(f"run_python called")
     current_dir = Path(__file__).parent
-    result = subprocess.run(["python", f"{current_dir}/../../../downloaded_files/{task_id}.py"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["python", f"{current_dir}/../../../downloaded_files/{task_id}.py"],
+        capture_output=True,
+        text=True,
+    )
     time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return result.stdout.strip()
-    
+
 
 # repl_tool = Tool(
 #     name="python_repl",
 #     description="A Python shell. Use this to execute python commands. Input should be a valid python command. If you want to see the output of a value, you should print it out with `print(...)`.",
 #     func=PythonREPL().run,
 # )
+
 
 @tool
 def audio_model(query: str, task_id: str) -> str:
@@ -100,7 +111,7 @@ def audio_model(query: str, task_id: str) -> str:
 
     if "GOOGLE_API_KEY" not in os.environ:
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
-    
+
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash-lite-preview-06-17",
         temperature=0,
@@ -112,7 +123,6 @@ def audio_model(query: str, task_id: str) -> str:
     current_dir = Path(__file__).parent
     audio_file_path = f"{current_dir}/../../../downloaded_files/{task_id}.mp3"
     audio_mime_type = "audio/mpeg"
-
 
     with open(audio_file_path, "rb") as audio_file:
         encoded_audio = base64.b64encode(audio_file.read()).decode("utf-8")
@@ -131,7 +141,6 @@ def audio_model(query: str, task_id: str) -> str:
     time.sleep(10)  # pause execution to help prevent exceeding rate limits
     return response
 
-    
 
 @tool
 def visual_model(query: str, task_id: str) -> str:
@@ -150,7 +159,7 @@ def visual_model(query: str, task_id: str) -> str:
     logger.info(f"visual_model called with query='{query}'")
     if "GOOGLE_API_KEY" not in os.environ:
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
-    
+
     llm_gemma = ChatGoogleGenerativeAI(
         model="gemma-3-27b-it",
         temperature=0,
@@ -168,7 +177,10 @@ def visual_model(query: str, task_id: str) -> str:
     message_local = HumanMessage(
         content=[
             {"type": "text", "text": f"{query}"},
-            {"type": "image_url", "image_url": f"data:image/png;base64,{encoded_image}"},
+            {
+                "type": "image_url",
+                "image_url": f"data:image/png;base64,{encoded_image}",
+            },
         ]
     )
     result = llm_gemma.invoke([message_local])
@@ -178,7 +190,7 @@ def visual_model(query: str, task_id: str) -> str:
 
 search_tool = TavilySearch(
     max_results=2,
-    # topic="general",    
+    # topic="general",
     # time_range="week",
     # include_domains=None,
     # exclude_domains=None
@@ -193,23 +205,25 @@ class ImprovedQuery(BaseModel):
     # query4: str = Field(description="An improved query version 4")
     # query5: str = Field(description="An improved query version 5")
 
+
 @tool
 def web_search(query: str) -> str:
     """Search the web for a query and return maximum 2 results.
-    
+
     Args:
         query: The search query."""
-    
+
     logger.info(f"web_search called with query='{query}'")
     # alternative_queries = generate_improved_queries(query)
     alternative_queries = {}
-    alternative_queries['query'] = query
+    alternative_queries["query"] = query
     search_results = []
     for key, val in alternative_queries.items():
         search_results.append(search_tool.invoke(val))
     # print(f"Search results: {search_results} \n type: {type(search_results)}")
     time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return {"search_results": str(search_results)}
+
 
 def generate_improved_queries(query: str) -> str:
     """
@@ -223,7 +237,7 @@ def generate_improved_queries(query: str) -> str:
     """
     if "GOOGLE_API_KEY" not in os.environ:
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
-    
+
     llm_gemma = ChatGoogleGenerativeAI(
         model="gemma-3-27b-it",
         temperature=0,
@@ -241,17 +255,17 @@ def generate_improved_queries(query: str) -> str:
     )
 
     chain = prompt | llm_gemma | parser
-    time.sleep(5)  # pause execution to help prevent exceeding rate limits      
+    time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return chain.invoke({"query": query})
 
 
 @tool
 def wiki_search(query: str) -> str:
     """Search Wikipedia for a query and return maximum 2 results.
-    
+
     Args:
         query: The search query."""
-    
+
     logger.info(f"wiki_search called with query='{query}'")
     search_docs = WikipediaLoader(query=query, load_max_docs=2).load()
     # print(f"Search results: {search_docs}")
@@ -260,7 +274,8 @@ def wiki_search(query: str) -> str:
             # f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}\n</Document>'
             f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n</Document>'
             for doc in search_docs
-        ])
+        ]
+    )
     time.sleep(5)  # pause execution to help prevent exceeding rate limits
     return {"wiki_results": formatted_search_docs}
 
@@ -269,7 +284,7 @@ def wiki_search(query: str) -> str:
 def wikipedia_search_html(query: str) -> str:
     """
     Search Wikipedia for a given query, retrieve the corresponding page's HTML content,
-    clean it by removing unnecessary elements, and return a simplified HTML string 
+    clean it by removing unnecessary elements, and return a simplified HTML string
     optimized for AI processing.
 
     Args:
@@ -278,13 +293,13 @@ def wikipedia_search_html(query: str) -> str:
     Returns:
         str: Cleaned HTML string of the Wikipedia page's main content, or an empty string if not found.
     """
-    
+
     logger.info(f"wikipedia_search_html called with query='{query}'")
     # Step 1: Get Wikipedia HTML
     page = None
     attempt = 0
     max_retries = 2
-    
+
     while attempt <= max_retries:
         try:
             if attempt == 0:
@@ -293,32 +308,36 @@ def wikipedia_search_html(query: str) -> str:
                 # Try search suggestions if direct lookup fails
                 search_results = wikipedia.search(query, results=3)
                 if search_results:
-                    logger.info(f"Search results: {search_results[attempt-1]}")
-                    page = wikipedia.page(search_results[attempt-1])
+                    logger.info(f"Search results: {search_results[attempt - 1]}")
+                    page = wikipedia.page(search_results[attempt - 1])
                 else:
                     logger.warning(f"No search results found for query: '{query}'")
                     return ""
             break
-            
+
         except wikipedia.exceptions.DisambiguationError as e:
-            logger.info(f"Disambiguation found for '{query}', using first option: {e.options[0]}")
+            logger.info(
+                f"Disambiguation found for '{query}', using first option: {e.options[0]}"
+            )
             try:
                 page = wikipedia.page(e.options[0])
                 break
             except Exception as nested_e:
                 logger.warning(f"Failed to get disambiguation page: {nested_e}")
                 attempt += 1
-                
+
         except wikipedia.exceptions.PageError:
             logger.warning(f"Page not found for query: '{query}'")
             attempt += 1
-            
+
         except Exception as e:
-            logger.error(f"Unexpected error fetching Wikipedia page (attempt {attempt + 1}): {e}")
+            logger.error(
+                f"Unexpected error fetching Wikipedia page (attempt {attempt + 1}): {e}"
+            )
             attempt += 1
             if attempt <= max_retries:
                 time.sleep(1)  # Brief pause before retry
-    
+
     if not page:
         logger.error(f"Failed to retrieve page after {max_retries + 1} attempts")
         return ""
@@ -332,24 +351,31 @@ def wikipedia_search_html(query: str) -> str:
     # Step 2: Parse HTML
     soup = BeautifulSoup(html, "html.parser")
     content_div = soup.find("div", class_="mw-parser-output")
-    
+
     if not content_div:
         logger.warning("Could not find main content div")
         return ""
 
     # Step 3: Remove unwanted elements (more comprehensive for AI processing)
     selectors_to_remove = [
-        "style", "script", "noscript",  # Scripts and styles
-        ".reference", ".references",    # References
-        ".navbox", ".infobox", ".sidebar",  # Navigation boxes
-        ".hatnote", ".dablink",         # Disambiguation notes
-        ".printfooter", ".catlinks",    # Print/category links
-        ".mw-editsection",              # Edit section links
-        ".thumbcaption .magnify",       # Image magnify links
-        "[role='note']",                # Note elements
-        ".mw-cite-backlink"             # Citation backlinks
+        "style",
+        "script",
+        "noscript",  # Scripts and styles
+        ".reference",
+        ".references",  # References
+        ".navbox",
+        ".infobox",
+        ".sidebar",  # Navigation boxes
+        ".hatnote",
+        ".dablink",  # Disambiguation notes
+        ".printfooter",
+        ".catlinks",  # Print/category links
+        ".mw-editsection",  # Edit section links
+        ".thumbcaption .magnify",  # Image magnify links
+        "[role='note']",  # Note elements
+        ".mw-cite-backlink",  # Citation backlinks
     ]
-    
+
     for selector in selectors_to_remove:
         for element in content_div.select(selector):
             element.decompose()
@@ -357,15 +383,28 @@ def wikipedia_search_html(query: str) -> str:
     # Step 4: Preserve more useful tags for AI understanding
     # AI agents benefit from semantic structure
     allowed_tags = {
-        "p", "div",              # Text containers
-        "h1", "h2", "h3", "h4", "h5", "h6",  # Headings
-        "ul", "ol", "li",                # Lists
-        "table", "tr", "td", "th", "tbody", "thead",  # Tables
+        "p",
+        "div",  # Text containers
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",  # Headings
+        "ul",
+        "ol",
+        "li",  # Lists
+        "table",
+        "tr",
+        "td",
+        "th",
+        "tbody",
+        "thead",  # Tables
         # "a", "strong", "b", "em", "i",   # Text formatting and links
         # "blockquote", "code", "pre",     # Special content
         # "img", "figure", "figcaption"    # Images with context
     }
-    
+
     # Remove attributes that aren't useful for AI (keep href, src, alt)
     # useful_attrs = {"href", "src", "alt", "title"}
     useful_attrs = {}

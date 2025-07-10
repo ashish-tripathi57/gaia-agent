@@ -23,8 +23,8 @@ builder.add_conditional_edges(
     {
         "tools": "tools",  # Route to tools if needed
         # END: "END"  # Route to end if no tools needed
-        END: "validate_answer"  # Route to validate_answer if no tools needed
-    }
+        END: "validate_answer",  # Route to validate_answer if no tools needed
+    },
 )
 
 # From tools back to assistant to process tool results
