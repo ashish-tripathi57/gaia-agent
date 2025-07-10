@@ -9,6 +9,7 @@ from gaia_agent.common.prompts import load_prompt
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import ToolNode
 from gaia_agent.agents.reflection.state import AgentState
+from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ def get_tool_node(state: AgentState, config: Dict):
 
 def reflection(state: AgentState, config: Dict):
     logger.info("Reflection node processing")
+    current_dir = Path(__file__).parent
     # Data model
     class ReflectionOutput(BaseModel):
         """Reflection output."""
@@ -72,7 +74,7 @@ def reflection(state: AgentState, config: Dict):
     # LLM with function call
     parser = JsonOutputParser(pydantic_object=ReflectionOutput)
 
-    reflection_prompt = load_prompt("../src/gaia_agent/prompts", "reflection")
+    reflection_prompt = load_prompt(current_dir / ".." / ".." / "prompts", "reflection")
     llm = ChatGoogleGenerativeAI(
         model="gemma-3-12b-it",
         temperature=0,

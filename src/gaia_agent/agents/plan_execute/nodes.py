@@ -9,6 +9,7 @@ from gaia_agent.common.prompts import load_prompt
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import ToolNode, create_react_agent
 from gaia_agent.agents.plan_execute.state import AgentState
+from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ tools = [web_search, wikipedia_search_html, website_scrape, visual_model, audio_
 def planner(state: AgentState, config: Dict):
     logger.info("Planner node processing")
     parser = JsonOutputParser(pydantic_object=Plan)
+    current_dir = Path(__file__).parent
 
     tools_str = "\n\n---\n\n".join([f"Tool: {tool.name}\nDescription: {tool.description}" for tool in tools])
     
@@ -49,7 +51,7 @@ def planner(state: AgentState, config: Dict):
         max_retries=2,
     )
     
-    planner_prompt = load_prompt("../src/gaia_agent/prompts", "planner")
+    planner_prompt = load_prompt(current_dir / ".." / ".." / "prompts", "planner")
     prompt = ChatPromptTemplate.from_messages(
         [
             ("human", planner_prompt + "\n\n{format_instructions}"),
@@ -98,6 +100,7 @@ def replanner(state: AgentState, config: Dict):
     logger.info("Replanner node processing")
 
     parser = JsonOutputParser(pydantic_object=Act)
+    current_dir = Path(__file__).parent
 
     tools_str = "\n\n---\n\n".join([f"Tool: {tool.name}\nDescription: {tool.description}" for tool in tools])
 
@@ -109,7 +112,7 @@ def replanner(state: AgentState, config: Dict):
         max_retries=2,
     )
 
-    replanner_prompt = load_prompt("../src/gaia_agent/prompts", "replanner")
+    replanner_prompt = load_prompt(current_dir / ".." / ".." / "prompts", "replanner")
     
     prompt = ChatPromptTemplate.from_messages(
         [
