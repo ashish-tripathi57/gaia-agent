@@ -4,10 +4,19 @@ import operator
 from pydantic import BaseModel, Field
 from typing import Literal
 
+
 class Task(BaseModel):
     """Task to perform."""
 
-    agent_name: Literal["research_agent", "wikipedia_agent", "validation_agent"] = Field(description="Agent to perform task.")
+    agent_name: Literal[
+        "validation_agent",
+        "web_search_agent",
+        "wikipedia_agent",
+        "visual_agent",
+        "audio_agent",
+        "excel_agent",
+        "python_agent",
+    ] = Field(description="Agent to perform task.")
     agent_task: str = Field(description="Task to perform.")
 
 

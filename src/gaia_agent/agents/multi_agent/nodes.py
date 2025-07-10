@@ -1,12 +1,8 @@
-from typing import Dict, List, Union, Literal
-from pydantic import BaseModel, Field
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage, ToolMessage
-from langchain_core.messages.utils import get_buffer_string
+from typing import Dict, Literal
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from gaia_agent.common.tools import (
     wikipedia_search_html,
-    wiki_search,
     website_scrape,
     web_search,
     visual_model,
@@ -16,115 +12,14 @@ from gaia_agent.common.tools import (
 )
 from gaia_agent.common.prompts import load_prompt
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import ToolNode, create_react_agent
-from gaia_agent.agents.multi_agent.state import AgentState
+from langgraph.prebuilt import create_react_agent
+from gaia_agent.agents.multi_agent.state import AgentState, Tasks
 import inspect
-import importlib.util
 from langgraph.types import Command
-from types import ModuleType
 from pathlib import Path
-from gaia_agent.agents.multi_agent.state import Tasks
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-# load agent from file
-def load_agent_from_file(file_path: str) -> List[ToolNode]:
-    """
-    Loads a Python file as a module and yields the name and docstring
-    of each function found within it.
-    """
-    # Create a module spec from the file path
-    spec = importlib.util.spec_from_file_location("my_module", file_path)
-
-    # Create a module from the spec
-    module = importlib.util.module_from_spec(spec)
-
-    # Execute the module to make its contents available
-    spec.loader.exec_module(module)
-
-    # Use inspect to find all function members of the module
-    for name, func in inspect.getmembers(module, inspect.isfunction):
-        # The __doc__ attribute holds the docstring
-        if func.__module__ == module.__name__:
-            if name.endswith("_agent"):
-                docstring = inspect.getdoc(func) or "No docstring found."
-                yield name, docstring
-
-
-# Planner node - generates responses
-def supervisor(
-    state: AgentState, config: Dict
-) -> Command[
-    Literal["research_agent", "wikipedia_agent", "validation_agent"]
-]:
-    logger.info("Supervisor node processing")
-
-    parser = JsonOutputParser(pydantic_object=Tasks)
-
-    current_dir = Path(__file__).parent
-    agents_path = current_dir / "nodes.py"
-    agents_str = "\n---\n".join(
-        [
-            f"Agent: {agent_name}\nDescription: {docstring}"
-            for agent_name, docstring in load_agent_from_file(agents_path)
-        ]
-    )
-    agents_str += "\n---\nAgent: validation_agent\nDescription: Once you have determined the final answer to the user's question, pass it to this agent. The answer must be fully self-contained, including all relevant information without relying on prior context.\n---\n"
-    tasks_str = "---\n".join(f"{key}\n{val}" for key, val in state["past_steps"])
-    tasks_str += "\n---\n"
-
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite-preview-06-17", #model="gemma-3-27b-it",
-        temperature=0,
-        max_tokens=None,
-        timeout=60,  # Added a timeout
-        max_retries=2,
-    )
-    llm = llm.with_structured_output(Tasks)
-
-    prompt_path = current_dir / ".." / ".." / "prompts"
-    planner_prompt = load_prompt(prompt_path, "supervisor")
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            # ("human", planner_prompt + "\n\n{format_instructions}"),
-            ("human", planner_prompt),
-        ]
-    )
-
-    planner_chain = prompt | llm #| parser
-    response = planner_chain.invoke(
-        {
-            "question": state["question"],
-            "past_steps": tasks_str,
-            "agents": agents_str,
-            # "format_instructions": parser.get_format_instructions(),
-        }
-    )
-
-    agent_name, agent_task = response.agent_tasks[0].agent_name, response.agent_tasks[0].agent_task
-    if agent_name == "validation_agent":
-        return Command(
-            goto="validation_agent",
-            update={
-                "agent_tasks": response.agent_tasks,
-                "last_ai_message": agent_task,
-            },
-        )
-    elif agent_name == "research_agent":
-        return Command(
-            goto="research_agent", update={"agent_tasks": response.agent_tasks}
-        )
-    elif agent_name == "wikipedia_agent":
-        return Command(
-            goto="wikipedia_agent", update={"agent_tasks": response.agent_tasks}
-        )
-    else:
-        return Command(
-            goto="__end__", update={"error": f"Invalid agent name {agent_name} found"}
-        )
-    # return {"agent_tasks": response["agent_tasks"]}
 
 
 def _execute_agent_task(state: AgentState, config: Dict, agent_name: str, tools: list):
@@ -171,15 +66,123 @@ def _execute_agent_task(state: AgentState, config: Dict, agent_name: str, tools:
         }
 
 
-def research_agent(state: AgentState, config: Dict):
-    """Research agent node has access to the web and can use tools to complete tasks."""
+def web_search_agent(state: AgentState, config: Dict):
+    """Web search agent can use tools to do web search and website scraping."""
     return _execute_agent_task(
-        state, config, "research_agent", [web_search, website_scrape]
+        state, config, "web_search_agent", [web_search, website_scrape]
     )
 
 
 def wikipedia_agent(state: AgentState, config: Dict):
-    """Wikipedia agent node has access to Wikipedia and can use tools to complete tasks."""
+    """Wikipedia agent can use wikipedia api to search for information."""
     return _execute_agent_task(
-        state, config, "wikipedia_agent", [wikipedia_search_html, wiki_search]
+        state, config, "wikipedia_agent", [wikipedia_search_html]
+    )
+
+
+def visual_agent(state: AgentState, config: Dict):
+    """Visual agent can use tools to process images."""
+    return _execute_agent_task(state, config, "visual_agent", [visual_model])
+
+
+def audio_agent(state: AgentState, config: Dict):
+    """Audio agent can use tools to process audio."""
+    return _execute_agent_task(state, config, "audio_agent", [audio_model])
+
+
+def excel_agent(state: AgentState, config: Dict):
+    """Excel agent can use tools to process excel files."""
+    return _execute_agent_task(state, config, "excel_agent", [excel_tool])
+
+
+def python_agent(state: AgentState, config: Dict):
+    """Python agent can use tools to process python files."""
+    return _execute_agent_task(state, config, "python_agent", [run_python])
+
+
+# Then collect them at module level
+def _collect_agents_with_docs():
+    """Collect all agent functions from current module"""
+    current_module = inspect.getmodule(inspect.currentframe())
+    agents = []
+    for name, func in inspect.getmembers(current_module, inspect.isfunction):
+        if name.endswith("_agent") and func.__module__ == current_module.__name__:
+            docstring = inspect.getdoc(func) or "No docstring found."
+            agents.append((name, docstring))
+    return agents
+
+
+# Cache the agent data
+AGENT_DATA = _collect_agents_with_docs()
+AGENT_NAMES = [name for name, _ in AGENT_DATA]
+
+
+def get_agents():
+    return AGENT_NAMES
+
+
+def get_agents_with_docs():
+    return AGENT_DATA
+
+
+# Planner node - generates responses
+def supervisor(
+    state: AgentState, config: Dict
+) -> Command[
+    Literal[
+        *get_agents(),
+        "validation_agent",
+    ]
+]:
+    logger.info("Supervisor node processing")
+
+    current_dir = Path(__file__).parent
+    agents_str = "\n---\n".join(
+        [
+            f"Agent: {agent_name}\nDescription: {docstring}"
+            for agent_name, docstring in get_agents_with_docs()
+        ]
+    )
+    agents_str += "\n---\nAgent: validation_agent\nDescription: Once you have determined the final answer to the user's question, pass it to this agent. The answer must be fully self-contained, including all relevant information without relying on prior context.\n---\n"
+    tasks_str = "---\n".join(f"{key}\n{val}" for key, val in state["past_steps"])
+    tasks_str += "\n---\n"
+
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",  # model="gemma-3-27b-it",
+        temperature=0,
+        max_tokens=None,
+        timeout=60,  # Added a timeout
+        max_retries=2,
+    )
+    llm = llm.with_structured_output(Tasks)
+
+    prompt_path = current_dir / ".." / ".." / "prompts"
+    planner_prompt = load_prompt(prompt_path, "supervisor")
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            # ("human", planner_prompt + "\n\n{format_instructions}"),
+            ("human", planner_prompt),
+        ]
+    )
+
+    planner_chain = prompt | llm  # | parser
+    response = planner_chain.invoke(
+        {
+            "question": state["question"],
+            "past_steps": tasks_str,
+            "agents": agents_str,
+            # "format_instructions": parser.get_format_instructions(),
+        }
+    )
+
+    agent_name, agent_task = (
+        response.agent_tasks[0].agent_name,
+        response.agent_tasks[0].agent_task,
+    )
+    return Command(
+        goto=agent_name,
+        update={
+            "agent_tasks": response.agent_tasks,
+            "last_ai_message": agent_task,
+        },
     )
