@@ -1,5 +1,5 @@
 from typing import Dict, Literal
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from gaia_agent.common.tools import (
     wikipedia_search_html,
@@ -43,7 +43,7 @@ def _execute_agent_task(state: AgentState, config: Dict, agent_name: str, tools:
         agent_executor = create_react_agent(llm, tools, prompt=prompt, name=agent_name)
         agent_response = agent_executor.invoke({"messages": [("user", task_formatted)]})
 
-        final_response = f"{agent_name}'s task: {task}\n\n{agent_name}'s response: {agent_response['messages'][-1].content}"
+        final_response = f"{agent_name}'s response: {agent_response['messages'][-1].content}"
         logger.info(f"{agent_name} response: {agent_response['messages'][-1].content}")
 
         return {
@@ -53,7 +53,7 @@ def _execute_agent_task(state: AgentState, config: Dict, agent_name: str, tools:
                     f"{agent_name}'s Response: {agent_response['messages'][-1].content}\n",
                 )
             ],
-            "messages": [HumanMessage(content=final_response)],
+            "messages": [HumanMessage(content=final_response, name=agent_name)],
         }
     except Exception as e:
         logger.error(f"Error in {agent_name} node: {e}")
@@ -141,13 +141,7 @@ def supervisor(
     logger.info("Supervisor node processing")
 
     current_dir = Path(__file__).parent
-    agents_str = "\n---\n".join(
-        [
-            f"Agent: {agent_name}\nDescription: {docstring}"
-            for agent_name, docstring in get_agents_with_docs()
-        ]
-    )
-    agents_str += "\n---\nAgent: validation_agent\nDescription: Once you have determined the final answer to the user's question, pass it to this agent. The answer must be fully self-contained, including all relevant information without relying on prior context.\n---\n"
+    
     tasks_str = "---\n".join(f"{key}\n{val}" for key, val in state["past_steps"])
     tasks_str += "\n---\n"
 
@@ -160,22 +154,31 @@ def supervisor(
     )
     llm = llm.with_structured_output(Tasks)
 
-    prompt_path = current_dir / ".." / ".." / "prompts"
-    planner_prompt = load_prompt(prompt_path, "supervisor")
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            # ("human", planner_prompt + "\n\n{format_instructions}"),
-            ("human", planner_prompt),
-        ]
-    )
+    messages = state["messages"]
+    if len(messages) == 0:
+        agents_str = "\n---\n".join(
+            [
+                f"Agent: {agent_name}\nDescription: {docstring}"
+                for agent_name, docstring in get_agents_with_docs()
+            ]
+        )
+        agents_str += "\n---\nAgent: validation_agent\nDescription: Once you have determined the final answer to the user's question, pass it to this agent. The answer must be fully self-contained, including all relevant information without relying on prior context.\n---\n"
 
-    planner_chain = prompt | llm  # | parser
+        prompt_path = current_dir / ".." / ".." / "prompts"
+        supervisor_prompt = load_prompt(prompt_path, "supervisor")
+        system_message = SystemMessage(content=supervisor_prompt.format(
+            agents=agents_str))
+        human_question = HumanMessage(content=state["question"])
+
+        messages.append(system_message)
+        messages.append(human_question)
+        
+    instruction_prompt = HumanMessage(content="Now as a supervisor, analyze the steps that have been done and think about what to do next. If you can answer the user's question using the past steps, then pass your answer to the validation agent. Otherwise, break it down into delegated tasks to subagents as described and always pass tasks id to subagents whenever task id is specified.")
+    prompt = ChatPromptTemplate.from_messages(messages + [instruction_prompt])
+    planner_chain = prompt | llm
     response = planner_chain.invoke(
         {
-            "question": state["question"],
-            "past_steps": tasks_str,
-            "agents": agents_str,
-            # "format_instructions": parser.get_format_instructions(),
+            "messages": messages,
         }
     )
 
@@ -183,10 +186,16 @@ def supervisor(
         response.agent_tasks[0].agent_name,
         response.agent_tasks[0].agent_task,
     )
+    ai_message = AIMessage(
+        content=f"Supervisor call {agent_name} with instruction: {agent_task}",
+        name="Supervisor",
+    )
+    messages.append(ai_message)
     return Command(
         goto=agent_name,
         update={
             "agent_tasks": response.agent_tasks,
             "last_ai_message": agent_task,
+            "messages": messages
         },
     )
