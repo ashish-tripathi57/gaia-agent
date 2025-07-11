@@ -48,7 +48,7 @@ def excel_tool(query: str, task_id: str) -> str:
         os.environ["GOOGLE_API_KEY"] = os.environ["GEMINI_API_KEY"]
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite-preview-06-17",
+        model="gemini-2.5-flash",
         temperature=0,
         max_tokens=None,
         timeout=60,  # Added a timeout
